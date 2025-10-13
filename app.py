@@ -15,19 +15,25 @@ st.set_page_config(
 )
 
 # ======================
-# Dark mode CSS
+# Dark mode CSS & chat bubbles
 # ======================
-st.markdown(
-    """
-    <style>
-    body {background-color: #0D0D0D; color: #FFFFFF;}
-    .stButton>button {background-color: #333333; color: #FFFFFF;}
-    .stTextInput>div>div>input {background-color: #1C1C1C; color: #FFFFFF; border: 1px solid #333333;}
-    hr {border: 1px solid #333333;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<style>
+body {background-color: #0D0D0D; color: #FFFFFF;}
+.stButton>button {background-color: #333333; color: #FFFFFF;}
+.stTextInput>div>div>input {background-color: #1C1C1C; color: #FFFFFF; border: 1px solid #333333;}
+hr {border: 1px solid #333333;}
+.user-bubble {
+    background-color: #2E2E2E; color:#FFFFFF; padding:10px; border-radius:12px; margin:6px 0; width:60%; float:right; clear:both;
+}
+.bot-bubble {
+    background-color: #1F3B3B; color:#FFFFFF; padding:10px; border-radius:12px; margin:6px 0; width:60%; float:left; clear:both;
+}
+.mood-text {
+    color:#CCCCCC; font-size:12px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ======================
 # Load Secrets
@@ -97,23 +103,17 @@ with tab1:
     st.header("💬 Chat with CalmMate")
     st.markdown("Share how you're feeling today. CalmMate will reply with empathy and care.")
 
+    # Chat container
     chat_container = st.container()
 
     # Display chat
     for chat in st.session_state.history:
-        # User bubble
-        st.markdown(
-            f"<div style='background-color:#2E2E2E;color:#FFFFFF;padding:10px;border-radius:12px;margin:6px 0;width:60%;'>"
-            f"<b>You:</b> {chat['user']}</div>",
-            unsafe_allow_html=True
+        chat_container.markdown(
+            f"<div class='user-bubble'><b>You:</b> {chat['user']}</div>", unsafe_allow_html=True
         )
-        # CalmMate bubble
-        st.markdown(
-            f"<div style='background-color:#1F3B3B;color:#FFFFFF;padding:10px;border-radius:12px;margin:6px 0;width:60%;'>"
-            f"<b>CalmMate:</b> {chat['reply']}</div>",
-            unsafe_allow_html=True
+        chat_container.markdown(
+            f"<div class='bot-bubble'><b>CalmMate:</b> {chat['reply']}</div>", unsafe_allow_html=True
         )
-        # Mood
         mood_emoji = {
             "Happy": "😊",
             "Sad": "😢",
@@ -122,17 +122,18 @@ with tab1:
             "Neutral": "😐",
             "Excited": "😃"
         }.get(chat["mood"], "😐")
-        st.markdown(
-            f"<small style='color:#CCCCCC'><b>Mood Detected:</b> {chat['mood']} {mood_emoji}</small>",
+        chat_container.markdown(
+            f"<div class='mood-text'><b>Mood Detected:</b> {chat['mood']} {mood_emoji}</div>",
             unsafe_allow_html=True
         )
-        st.markdown("<hr>", unsafe_allow_html=True)
+        chat_container.markdown("<hr>", unsafe_allow_html=True)
 
     # Input at bottom
     user_input = st.chat_input("Type your message here...")
+
     if user_input:
         generate_reply(user_input)
-        st.experimental_rerun = None  # remove old rerun method, no need now
+        st.experimental_rerun = None  # remove old rerun
 
     # Clear chat
     if st.button("🗑 Clear Chat"):
