@@ -6,12 +6,27 @@ from firebase_admin import credentials, db, initialize_app
 import firebase_admin
 
 # ======================
-# Streamlit page config
+# Page config
 # ======================
 st.set_page_config(
     page_title="Mental Health Companion",
     page_icon="💬",
     layout="wide"
+)
+
+# ======================
+# Dark mode CSS
+# ======================
+st.markdown(
+    """
+    <style>
+    body {background-color: #0D0D0D; color: #FFFFFF;}
+    .stButton>button {background-color: #333333; color: #FFFFFF;}
+    .stTextInput>div>div>input {background-color: #1C1C1C; color: #FFFFFF; border: 1px solid #333333;}
+    hr {border: 1px solid #333333;}
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 # ======================
@@ -35,7 +50,7 @@ if not firebase_admin._apps:
     initialize_app(cred, {"databaseURL": firebase_url})
 
 # ======================
-# Initialize Session State
+# Session State
 # ======================
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -65,7 +80,7 @@ def generate_reply(user_input):
 
     User: {user_input}
     """
-    reply = str(model.generate_content(prompt).text)  # ensure string
+    reply = str(model.generate_content(prompt).text)
     mood = detect_mood(user_input)
     chat_entry = {"user": str(user_input), "reply": reply, "mood": mood}
     st.session_state.history.append(chat_entry)
@@ -82,37 +97,50 @@ with tab1:
     st.header("💬 Chat with CalmMate")
     st.markdown("Share how you're feeling today. CalmMate will reply with empathy and care.")
 
-    # Display chat history as bubbles
-    for chat in st.session_state.history:
-        st.markdown(
-            f"<div style='background-color:#D0E6FF;padding:8px;border-radius:10px'><b>You:</b> {chat['user']}</div>",
-            unsafe_allow_html=True
-        )
-        st.markdown(
-            f"<div style='background-color:#D0FFD6;padding:8px;border-radius:10px'><b>CalmMate:</b> {chat['reply']}</div>",
-            unsafe_allow_html=True
-        )
-        mood_emoji = {
-            "Happy": "😊",
-            "Sad": "😢",
-            "Stressed": "😟",
-            "Anxious": "😰",
-            "Neutral": "😐",
-            "Excited": "😃"
-        }.get(chat["mood"], "😐")
-        st.markdown(f"<small><b>Mood Detected:</b> {chat['mood']} {mood_emoji}</small>", unsafe_allow_html=True)
-        st.markdown("---")
+    chat_container = st.container()
 
-    # Input at the bottom
+    # Display chat in a scrollable container
+    with chat_container:
+        for chat in st.session_state.history:
+            # User bubble
+            st.markdown(
+                f"<div style='background-color:#2E2E2E;color:#FFFFFF;padding:10px;border-radius:12px;margin:6px 0;width:60%;'>"
+                f"<b>You:</b> {chat['user']}</div>",
+                unsafe_allow_html=True
+            )
+            # CalmMate bubble
+            st.markdown(
+                f"<div style='background-color:#1F3B3B;color:#FFFFFF;padding:10px;border-radius:12px;margin:6px 0;width:60%;'>"
+                f"<b>CalmMate:</b> {chat['reply']}</div>",
+                unsafe_allow_html=True
+            )
+            # Mood
+            mood_emoji = {
+                "Happy": "😊",
+                "Sad": "😢",
+                "Stressed": "😟",
+                "Anxious": "😰",
+                "Neutral": "😐",
+                "Excited": "😃"
+            }.get(chat["mood"], "😐")
+            st.markdown(
+                f"<small style='color:#CCCCCC'><b>Mood Detected:</b> {chat['mood']} {mood_emoji}</small>",
+                unsafe_allow_html=True
+            )
+            st.markdown("<hr>", unsafe_allow_html=True)
+
+    # Input at bottom
     user_input = st.chat_input("Type your message here...")
     if user_input:
         generate_reply(user_input)
+        st.experimental_rerun()  # auto-refresh chat
 
-    # Clear chat button
+    # Clear chat
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
+        st.experimental_rerun()
 
 # ===== MOOD STATS TAB =====
 with tab2:
