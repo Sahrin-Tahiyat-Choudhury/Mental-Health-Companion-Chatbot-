@@ -4,10 +4,13 @@ import os
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
+import json
 
 # --- CHANGE #1: Use st.secrets instead of dotenv ---
 api_key = st.secrets["GOOGLE_API_KEY"]
 firebase_url = st.secrets["FIREBASE_DB_URL"]
+
+firebase_key_dict = json.loads(st.secrets["FIREBASE_KEY_JSON"])
 
 # Configure Gemini
 genai.configure(api_key=api_key)
@@ -16,7 +19,7 @@ model = genai.GenerativeModel("gemini-2.5-flash-lite")
 # Initialize Firebase
 if not firebase_admin._apps:
     # firebase_key.json should be uploaded to your repo or added in secrets as string
-    cred = credentials.Certificate("firebase_key.json")
+    cred = credentials.Certificate(firebase_key_dict)
     firebase_admin.initialize_app(cred, {
         "databaseURL": firebase_url
     })
@@ -94,3 +97,4 @@ if st.session_state.history:
 
     mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
     st.bar_chart(mood_counts)
+
