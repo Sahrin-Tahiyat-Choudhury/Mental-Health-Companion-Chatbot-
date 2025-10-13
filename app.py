@@ -8,7 +8,7 @@ from firebase_admin import credentials, db
 import json
 
 # -------------------- Load Secrets --------------------
-load_dotenv()  # local env variables
+load_dotenv()
 api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 firebase_key_dict = st.secrets.get("FIREBASE_KEY_JSON")
 firebase_url = st.secrets.get("FIREBASE_DB_URL") or os.getenv("FIREBASE_DB_URL")
@@ -23,27 +23,34 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred, {"databaseURL": firebase_url})
 
 # -------------------- Streamlit UI --------------------
-st.set_page_config(page_title="CalmMate - AI Companion", page_icon="💬", layout="wide")
-
-# Use tabs for better UI
-tab1, tab2 = st.tabs(["💬 Chat", "📊 Mood Chart"])
+st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="centered")
 
 # -------------------- Initialize Session --------------------
 if "history" not in st.session_state:
     st.session_state.history = []
+if "cleared" not in st.session_state:
+    st.session_state.cleared = False
+if "nickname" not in st.session_state:
+    st.session_state.nickname = "CalmMate"  # default
+
+# -------------------- Sidebar for Nickname --------------------
+with st.sidebar:
+    st.header("Customize AI Companion")
+    nickname_input = st.text_input("Set AI nickname:", st.session_state.nickname)
+    if nickname_input:
+        st.session_state.nickname = nickname_input
 
 # -------------------- Helper Functions --------------------
 def generate_reply(user_input):
-    # CalmMate reply
     prompt = f"""
-    You are a calm, compassionate AI companion. Respond in a gentle, neutral, supportive way.
+    You are a calm, compassionate AI companion named {st.session_state.nickname}.
+    Respond in a gentle, neutral, and supportive way.
     Do not offer medical advice or unsafe topics. Keep it concise (2–3 sentences).
 
     User: {user_input}
     """
     reply = model.generate_content(prompt).text
 
-    # Detect mood
     mood_prompt = f"""
     Determine the mood of this user message. Respond with ONE word only:
     Happy, Sad, Stressed, Anxious, Neutral, Excited
@@ -56,73 +63,71 @@ def generate_reply(user_input):
 def save_to_firebase(history):
     db.reference("chat_history").set(history)
 
-# -------------------- Tab 1: Chat --------------------
-with tab1:
-    st.header("💬 Chat with CalmMate")
-    st.markdown("Your messages will appear instantly below. Start typing!")
+# -------------------- Clear Chat --------------------
+def clear_chat():
+    st.session_state.history = []
+    db.reference("chat_history").set({})
+    st.session_state.cleared = True
 
-    # Display existing chat
-    for chat in st.session_state.history:
-        with st.chat_message("user"):
-            st.markdown(chat["user"])
-        with st.chat_message("assistant"):
-            st.markdown(chat["reply"])
-            mood_emoji = {
-                "Happy": "😊",
-                "Sad": "😢",
-                "Stressed": "😟",
-                "Anxious": "😰",
-                "Neutral": "😐",
-                "Excited": "😃"
-            }.get(chat["mood"], "😐")
-            st.markdown(f"Detected Mood: {chat['mood']} {mood_emoji}")
+# -------------------- Chat Section --------------------
+st.title(f"💬 {st.session_state.nickname} – Your Supportive AI Companion")
+st.markdown("Share how you're feeling today. Your messages appear above, and AI responds below.")
 
-    # Input at bottom
-    user_input = st.chat_input("Type your message here...")
+# Display chat history
+for chat in st.session_state.history:
+    st.markdown(f"<div style='background-color:#1f1f1f; color:white; padding:8px; border-radius:5px; margin-bottom:4px;'><b>You:</b> {chat['user']}</div>", unsafe_allow_html=True)
+    mood_emoji = {
+        "Happy": "😊",
+        "Sad": "😢",
+        "Stressed": "😟",
+        "Anxious": "😰",
+        "Neutral": "😐",
+        "Excited": "😃"
+    }.get(chat["mood"], "😐")
+    st.markdown(f"<div style='background-color:#333333; color:#FFD700; padding:8px; border-radius:5px; margin-bottom:4px;'><b>{st.session_state.nickname}:</b> {chat['reply']} <i>(Mood: {chat['mood']} {mood_emoji})</i></div>", unsafe_allow_html=True)
 
-    if user_input:
-        reply, mood = generate_reply(user_input)
-        chat_entry = {"user": user_input, "reply": reply, "mood": mood}
-        st.session_state.history.append(chat_entry)
-        save_to_firebase(st.session_state.history)
+# Clear chat button
+if st.button("🗑 Clear Chat"):
+    clear_chat()
 
-        # Display instantly
-        with st.chat_message("user"):
-            st.markdown(user_input)
-        with st.chat_message("assistant"):
-            st.markdown(reply)
-            mood_emoji = {
-                "Happy": "😊",
-                "Sad": "😢",
-                "Stressed": "😟",
-                "Anxious": "😰",
-                "Neutral": "😐",
-                "Excited": "😃"
-            }.get(mood, "😐")
-            st.markdown(f"Detected Mood: {mood} {mood_emoji}")
+if st.session_state.cleared:
+    st.success("Chat cleared! Start a new conversation.")
+    st.session_state.cleared = False
 
-    # Clear chat
-    if st.button("🗑 Clear Chat"):
-        st.session_state.history = []
-        db.reference("chat_history").set({})
-        st.success("Chat cleared!")
+# Chat input
+user_input = st.text_input("You:", placeholder="Type here...")
 
-# -------------------- Tab 2: Mood Chart --------------------
-with tab2:
-    st.header("📊 Mood Overview")
-    if st.session_state.history:
-        mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
-        # Assign colors per mood
-        color_map = {
-            "Happy": "#FFD700",      # gold
-            "Sad": "#1E90FF",        # dodger blue
-            "Stressed": "#FF4500",   # orange red
-            "Anxious": "#8A2BE2",    # blue violet
-            "Neutral": "#A9A9A9",    # dark grey
-            "Excited": "#32CD32"     # lime green
-        }
-        chart_colors = [color_map.get(m, "#FFFFFF") for m in mood_counts.index]
+if user_input:
+    reply, mood = generate_reply(user_input)
+    chat_entry = {"user": user_input, "reply": reply, "mood": mood}
+    st.session_state.history.append(chat_entry)
+    save_to_firebase(st.session_state.history)
 
-        st.bar_chart(pd.DataFrame({"Count": mood_counts.values}, index=mood_counts.index), use_container_width=True)
-    else:
-        st.info("No chat history yet. Start chatting to see your mood trends!")
+    # Display instantly
+    st.markdown(f"<div style='background-color:#1f1f1f; color:white; padding:8px; border-radius:5px; margin-bottom:4px;'><b>You:</b> {user_input}</div>", unsafe_allow_html=True)
+    mood_emoji = {
+        "Happy": "😊",
+        "Sad": "😢",
+        "Stressed": "😟",
+        "Anxious": "😰",
+        "Neutral": "😐",
+        "Excited": "😃"
+    }.get(mood, "😐")
+    st.markdown(f"<div style='background-color:#333333; color:#FFD700; padding:8px; border-radius:5px; margin-bottom:4px;'><b>{st.session_state.nickname}:</b> {reply} <i>(Mood: {mood} {mood_emoji})</i></div>", unsafe_allow_html=True)
+
+# -------------------- Mood Overview --------------------
+st.markdown("### 📊 Mood Overview")
+if st.session_state.history:
+    mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
+    color_map = {
+        "Happy": "#FFD700",      # gold
+        "Sad": "#1E90FF",        # dodger blue
+        "Stressed": "#FF4500",   # orange red
+        "Anxious": "#8A2BE2",    # blue violet
+        "Neutral": "#A9A9A9",    # dark grey
+        "Excited": "#32CD32"     # lime green
+    }
+    chart_df = pd.DataFrame({"Count": mood_counts.values}, index=mood_counts.index)
+    st.bar_chart(chart_df.style.set_properties({"color": "white", "background-color": chart_df.index.map(color_map)}))
+else:
+    st.info("No chat history yet. Start chatting to see mood trends!")
