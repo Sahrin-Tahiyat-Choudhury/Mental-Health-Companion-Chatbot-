@@ -24,7 +24,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred, {"databaseURL": firebase_url})
 
 # ---------- Streamlit UI ----------
-st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="centered")
+st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
 
 # Sidebar: nickname input
 with st.sidebar:
@@ -42,7 +42,9 @@ if "history" not in st.session_state:
 with chat_tab:
     st.markdown(f"### Chat with {companion_name}")
 
-    # Chat input form
+    chat_container = st.container()  # Container for scrolling chat
+
+    # Chat input form at the bottom
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("Your message:", placeholder="Type here...")
         submitted = st.form_submit_button("Send")
@@ -57,7 +59,7 @@ with chat_tab:
 
             User: {user_input}
             """
-            reply = model.generate_content(prompt).text  # fixed NoneType error
+            reply = model.generate_content(prompt).text
 
             # Detect mood
             mood_prompt = f"""
@@ -76,21 +78,32 @@ with chat_tab:
             ref = db.reference("chat_history")
             ref.set(st.session_state.history)
 
-    # Display chat history
-    for chat in st.session_state.history:
-        mood_emoji = {
-            "Happy": "😊",
-            "Sad": "😢",
-            "Stressed": "😟",
-            "Anxious": "😰",
-            "Neutral": "😐",
-            "Excited": "😃"
-        }.get(chat["mood"], "😐")
+    # Display chat history in ChatGPT style
+    with chat_container:
+        for chat in st.session_state.history:
+            mood_emoji = {
+                "Happy": "😊",
+                "Sad": "😢",
+                "Stressed": "😟",
+                "Anxious": "😰",
+                "Neutral": "😐",
+                "Excited": "😃"
+            }.get(chat["mood"], "😐")
 
-        st.markdown(f"You: {chat['user']}")
-        st.markdown(f"{companion_name}: {chat['reply']}")
-        st.markdown(f"Detected Mood: {chat['mood']} {mood_emoji}")
-        st.markdown("---")
+            # AI message (left)
+            st.markdown(
+                f"<div style='background-color:#2B2B2B; color:white; padding:10px; border-radius:10px; width:70%; margin-bottom:5px;'>"
+                f"<b>{companion_name}:</b> {chat['reply']}<br>"
+                f"<i>Mood: {chat['mood']} {mood_emoji}</i></div>",
+                unsafe_allow_html=True,
+            )
+
+            # User message (right)
+            st.markdown(
+                f"<div style='background-color:#4B4B4B; color:white; padding:10px; border-radius:10px; width:70%; margin-left:auto; margin-bottom:5px;'>"
+                f"<b>You:</b> {chat['user']}</div>",
+                unsafe_allow_html=True,
+            )
 
     # Clear chat button
     if st.button("🗑 Clear Chat"):
