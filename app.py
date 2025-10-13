@@ -7,7 +7,9 @@ import firebase_admin
 from firebase_admin import credentials, db
 import json
 
+# -----------------------------
 # Load environment variables
+# -----------------------------
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 firebase_url = os.getenv("FIREBASE_DB_URL")
@@ -22,7 +24,9 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(firebase_key_dict)
     firebase_admin.initialize_app(cred, {"databaseURL": firebase_url})
 
-# Streamlit UI
+# -----------------------------
+# Streamlit UI & Styling
+# -----------------------------
 st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
 st.markdown(
     """
@@ -52,59 +56,33 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Sidebar for nickname
+# Sidebar: AI Nickname
 nickname = st.sidebar.text_input("Enter AI Nickname:", value="CalmMate")
 
 # Initialize session state
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# Tabs: Chat and Mood Overview
+# -----------------------------
+# Tabs: Chat & Mood Overview
+# -----------------------------
 tab_chat, tab_mood = st.tabs(["💬 Chat", "📊 Mood Overview"])
 
+# -----------------------------
+# Chat Tab
+# -----------------------------
 with tab_chat:
-    # Clear chat button
+    chat_container = st.container()
+
+    # Clear Chat
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
 
-    # Chat input
-    user_input = st.text_input("You:", placeholder="Type here...")
-
-    def detect_mood(text):
-        prompt = f"""
-        Determine the mood of this user message. Respond with only ONE of these words:
-        Happy, Sad, Stressed, Anxious, Neutral, Excited
-
-        Message: {text}
-        """
-        response = model.generate_content(prompt)
-        return response.text.strip()
-
-    def save_to_firebase(chat_list):
-        """Save entire session history to Firebase"""
-        ref = db.reference("chat_history")
-        ref.set(chat_list)
-
-    if user_input:
-        # Generate AI reply
-        prompt = f"""
-        You are a calm, compassionate AI companion. Respond to the user in a gentle, neutral, and supportive way.
-        Do not offer medical advice. Avoid inappropriate or unsafe topics.
-        Keep the message concise (2–3 sentences).
-
-        User: {user_input}
-        """
-        with st.spinner("Thinking..."):
-            reply = model.generate_content(prompt).text
-
-        mood = detect_mood(user_input)
-        chat_entry = {"user": user_input, "reply": reply, "mood": mood}
-        st.session_state.history.append(chat_entry)
-        save_to_firebase(st.session_state.history)
-
-    # Display chat history
+    # -----------------------------
+    # Display Chat History (Above Input)
+    # -----------------------------
     for chat in st.session_state.history:
         mood_emoji = {
             "Happy": "😊",
@@ -119,6 +97,44 @@ with tab_chat:
         st.markdown(f"Detected Mood: {chat['mood']} {mood_emoji}", unsafe_allow_html=True)
         st.markdown("---")
 
+    # -----------------------------
+    # Input Form at Bottom
+    # -----------------------------
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_input("You:", placeholder="Type your message...")
+        submitted = st.form_submit_button("Send")
+
+        if submitted and user_input:
+            # Generate AI reply
+            prompt = f"""
+            You are a calm, compassionate AI companion. Respond to the user in a gentle, neutral, and supportive way.
+            Do not offer medical advice. Avoid inappropriate or unsafe topics.
+            Keep the message concise (2–3 sentences).
+
+            User: {user_input}
+            """
+            with st.spinner("Thinking..."):
+                reply = model.generate_content(prompt).text
+
+            # Detect Mood
+            mood_prompt = f"""
+            Determine the mood of this user message. Respond with ONLY ONE of these words:
+            Happy, Sad, Stressed, Anxious, Neutral, Excited
+
+            Message: {user_input}
+            """
+            mood = model.generate_content(mood_prompt).text.strip()
+
+            # Save to session and Firebase
+            chat_entry = {"user": user_input, "reply": reply, "mood": mood}
+            st.session_state.history.append(chat_entry)
+            db.reference("chat_history").set(st.session_state.history)
+
+            st.experimental_rerun()  # Automatically refresh chat to show latest message
+
+# -----------------------------
+# Mood Overview Tab
+# -----------------------------
 with tab_mood:
     if st.session_state.history:
         mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
