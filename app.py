@@ -38,45 +38,57 @@ chat_tab, mood_tab = st.tabs(["💬 Chat", "📊 Mood Overview"])
 if "history" not in st.session_state:
     st.session_state.history = []
 
+if "cleared" not in st.session_state:
+    st.session_state.cleared = False
+
 # ---------- Chat Tab ----------
 with chat_tab:
     st.markdown(f"### Chat with {companion_name}")
 
     chat_container = st.container()  # Container for scrolling chat
 
+    # Clear chat button
+    if st.button("🗑 Clear Chat"):
+        st.session_state.history = []
+        db.reference("chat_history").set({})
+        st.session_state.cleared = True
+
+    if st.session_state.cleared:
+        st.success("Chat cleared! Start a new conversation.")
+        st.session_state.cleared = False
+
     # Chat input form at the bottom
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("Your message:", placeholder="Type here...")
         submitted = st.form_submit_button("Send")
 
-        if submitted and user_input.strip():
-            # Generate AI reply
-            prompt = f"""
-            You are a calm, compassionate AI companion named {companion_name}. 
-            Respond gently, neutrally, and supportively.
-            Do not give medical advice. Avoid unsafe topics.
-            Keep reply concise (2–3 sentences).
+    if submitted and user_input.strip():
+        # Generate AI reply
+        prompt = f"""
+        You are a calm, compassionate AI companion named {companion_name}. 
+        Respond gently, neutrally, and supportively.
+        Do not give medical advice. Avoid unsafe topics.
+        Keep reply concise (2–3 sentences).
 
-            User: {user_input}
-            """
-            reply = model.generate_content(prompt).text
+        User: {user_input}
+        """
+        reply = model.generate_content(prompt).text
 
-            # Detect mood
-            mood_prompt = f"""
-            Determine the mood of this message. Respond with only one of:
-            Happy, Sad, Stressed, Anxious, Neutral, Excited.
+        # Detect mood
+        mood_prompt = f"""
+        Determine the mood of this message. Respond with only one of:
+        Happy, Sad, Stressed, Anxious, Neutral, Excited.
 
-            Message: {user_input}
-            """
-            mood = model.generate_content(mood_prompt).text.strip()
+        Message: {user_input}
+        """
+        mood = model.generate_content(mood_prompt).text.strip()
 
-            # Add to session history
-            chat_entry = {"user": user_input, "reply": reply, "mood": mood}
-            st.session_state.history.append(chat_entry)
+        # Add to session history immediately
+        st.session_state.history.append({"user": user_input, "reply": reply, "mood": mood})
 
-            # Save to Firebase
-            ref = db.reference("chat_history")
-            ref.set(st.session_state.history)
+        # Save to Firebase
+        ref = db.reference("chat_history")
+        ref.set(st.session_state.history)
 
     # Display chat history in ChatGPT style
     with chat_container:
@@ -104,12 +116,6 @@ with chat_tab:
                 f"<b>You:</b> {chat['user']}</div>",
                 unsafe_allow_html=True,
             )
-
-    # Clear chat button
-    if st.button("🗑 Clear Chat"):
-        st.session_state.history = []
-        db.reference("chat_history").set({})
-        st.success("Chat cleared! Start a new conversation.")
 
 # ---------- Mood Overview Tab ----------
 with mood_tab:
