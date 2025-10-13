@@ -38,9 +38,6 @@ st.session_state.nickname = st.sidebar.text_input(
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# Tabs for Chat and Mood Overview
-tab_chat, tab_mood = st.tabs(["💬 Chat", "📊 Mood Overview"])
-
 def detect_mood(text):
     prompt = f"""
     Determine the mood of this user message. Respond with only ONE of these words:
@@ -55,15 +52,19 @@ def save_to_firebase(chat_list):
     ref = db.reference("chat_history")
     ref.set(chat_list)
 
+# Tabs for Chat and Mood Overview
+tab_chat, tab_mood = st.tabs(["💬 Chat", "📊 Mood Overview"])
+
 # ----- Chat Tab -----
 with tab_chat:
     chat_container = st.container()
 
-    # Chat input
+    # Chat input at the bottom
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("You:", placeholder="Type your message here...")
         submitted = st.form_submit_button("Send")
-    
+
+    # Process user input
     if submitted and user_input:
         # Generate AI reply
         prompt = f"""
@@ -86,7 +87,7 @@ with tab_chat:
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
 
-    # Display chat dynamically
+    # Display chat dynamically, newest at the bottom
     for chat in st.session_state.history:
         mood_emoji = {
             "Happy": "😊",
