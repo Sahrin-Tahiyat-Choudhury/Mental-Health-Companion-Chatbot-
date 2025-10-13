@@ -1,27 +1,20 @@
 import streamlit as st
 import google.generativeai as genai
-import os
+import json
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
-import json
-
-# --- CHANGE #1: Use st.secrets instead of dotenv ---
-api_key = st.secrets["GOOGLE_API_KEY"]
-firebase_url = st.secrets["FIREBASE_DB_URL"]
-
-firebase_key_dict = json.loads(st.secrets["FIREBASE_KEY_JSON"])
 
 # Configure Gemini
-genai.configure(api_key=api_key)
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
 # Initialize Firebase
 if not firebase_admin._apps:
-    # firebase_key.json should be uploaded to your repo or added in secrets as string
+    firebase_key_dict = json.loads(st.secrets["FIREBASE_KEY_JSON"])
     cred = credentials.Certificate(firebase_key_dict)
     firebase_admin.initialize_app(cred, {
-        "databaseURL": firebase_url
+        "databaseURL": st.secrets["FIREBASE_DB_URL"]
     })
 
 # Streamlit UI
@@ -29,7 +22,7 @@ st.set_page_config(page_title="CalmMate - AI Companion", page_icon="💬", layou
 st.title("💬 CalmMate – Your Supportive AI Companion")
 st.markdown("Share how you're feeling today. CalmMate will reply with empathy and care.")
 
-# Initialize session state
+# Session state
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -48,7 +41,7 @@ user_input = st.text_input("You:", placeholder="Type here...")
 
 def detect_mood(text):
     prompt = f"""
-    Determine the mood of this user message. Respond with only ONE of these words:
+    Determine the mood of this user message. Respond with only ONE of these words:   
     Happy, Sad, Stressed, Anxious, Neutral, Excited
 
     Message: {text}
@@ -57,28 +50,26 @@ def detect_mood(text):
     return response.text.strip()
 
 def save_to_firebase(chat_list):
-    """Save entire session history to Firebase"""
     ref = db.reference("chat_history")
     ref.set(chat_list)
 
 if user_input:
-    # Generate CalmMate reply
     prompt = f"""
     You are a calm, compassionate AI companion. Respond to the user in a gentle, neutral, and supportive way.
-    Do not offer medical advice. Avoid inappropriate or unsafe topics.
-    Keep the message concise (2–3 sentences).
-
+    Do not offer medical advice. Avoid inappropriate or unsafe topics.   
+    Keep the message concise (2–3 sentences).   
+      
     User: {user_input}
     """
     with st.spinner("Thinking..."):
         reply = model.generate_content(prompt).text
 
     mood = detect_mood(user_input)
-
     chat_entry = {"user": user_input, "reply": reply, "mood": mood}
     st.session_state.history.append(chat_entry)
     save_to_firebase(st.session_state.history)
 
+# Display chat history
 if st.session_state.history:
     st.markdown("### 💬 Chat History")
     for chat in st.session_state.history:
@@ -97,4 +88,3 @@ if st.session_state.history:
 
     mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
     st.bar_chart(mood_counts)
-
