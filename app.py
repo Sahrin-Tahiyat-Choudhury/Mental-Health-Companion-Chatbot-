@@ -102,20 +102,23 @@ with chat_tab:
                 "Excited": "😃"
             }.get(chat["mood"], "😐")
 
-            # AI message (left)
-            st.markdown(
-                f"<div style='background-color:#2B2B2B; color:white; padding:10px; border-radius:10px; width:70%; margin-bottom:5px;'>"
-                f"<b>{companion_name}:</b> {chat['reply']}<br>"
-                f"<i>Mood: {chat['mood']} {mood_emoji}</i></div>",
-                unsafe_allow_html=True,
-            )
-
-            # User message (right)
+            # User message first (right side)
             st.markdown(
                 f"<div style='background-color:#4B4B4B; color:white; padding:10px; border-radius:10px; width:70%; margin-left:auto; margin-bottom:5px;'>"
                 f"<b>You:</b> {chat['user']}</div>",
                 unsafe_allow_html=True,
             )
+
+            # AI message below user message (left side)
+            st.markdown(
+                f"<div style='background-color:#2B2B2B; color:white; padding:10px; border-radius:10px; width:70%; margin-bottom:15px;'>"
+                f"<b>{companion_name}:</b> {chat['reply']}<br>"
+                f"<i>Mood: {chat['mood']} {mood_emoji}</i></div>",
+                unsafe_allow_html=True,
+            )
+
+    # Auto-scroll by adding empty space at bottom
+    st.markdown("<div style='height:30px'></div>", unsafe_allow_html=True)
 
 # ---------- Mood Overview Tab ----------
 with mood_tab:
