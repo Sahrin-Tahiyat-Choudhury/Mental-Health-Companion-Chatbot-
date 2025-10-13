@@ -18,7 +18,7 @@ if not firebase_admin._apps:
     })
 
 # Streamlit UI
-st.set_page_config(page_title="CalmMate - AI Companion", page_icon="💬", layout="centered")
+st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="centered")
 st.title("💬 CalmMate – Your Supportive AI Companion")
 st.markdown("Share how you're feeling today. CalmMate will reply with empathy and care.")
 
