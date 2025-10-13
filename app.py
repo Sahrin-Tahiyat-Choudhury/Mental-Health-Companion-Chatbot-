@@ -59,14 +59,42 @@ tab_chat, tab_mood = st.tabs(["💬 Chat", "📊 Mood Overview"])
 with tab_chat:
     chat_container = st.container()
 
+    # Display chat history in "bubble" style
+    for chat in st.session_state.history:
+        mood_emoji = {
+            "Happy": "😊",
+            "Sad": "😢",
+            "Stressed": "😟",
+            "Anxious": "😰",
+            "Neutral": "😐",
+            "Excited": "😃"
+        }.get(chat["mood"], "😐")
+
+        # User message (right-aligned)
+        st.markdown(f"""
+        <div style="text-align: right; margin: 5px;">
+            <div style="display: inline-block; background-color:#2B2B2B; padding:10px; border-radius:10px; color:white;">
+                <b>You:</b> {chat['user']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # AI message (left-aligned)
+        st.markdown(f"""
+        <div style="text-align: left; margin: 5px;">
+            <div style="display: inline-block; background-color:#3B3F4F; padding:10px; border-radius:10px; color:white;">
+                <b>{st.session_state.nickname}:</b> {chat['reply']}
+                <br><small>Mood: {chat['mood']} {mood_emoji}</small>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     # Chat input at the bottom
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("You:", placeholder="Type your message here...")
+        user_input = st.text_input("Your message:", placeholder="Type here...")
         submitted = st.form_submit_button("Send")
 
-    # Process user input
     if submitted and user_input:
-        # Generate AI reply
         prompt = f"""
         You are a calm, compassionate AI companion. Respond in a gentle, neutral, supportive way.
         Do not offer medical advice. Keep it concise (2–3 sentences).
@@ -80,27 +108,14 @@ with tab_chat:
         chat_entry = {"user": user_input, "reply": reply, "mood": mood}
         st.session_state.history.append(chat_entry)
         save_to_firebase(st.session_state.history)
+        st.experimental_rerun()  # immediately show the new message
 
     # Clear chat button
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
-
-    # Display chat dynamically, newest at the bottom
-    for chat in st.session_state.history:
-        mood_emoji = {
-            "Happy": "😊",
-            "Sad": "😢",
-            "Stressed": "😟",
-            "Anxious": "😰",
-            "Neutral": "😐",
-            "Excited": "😃"
-        }.get(chat["mood"], "😐")
-        st.markdown(f"*You:* {chat['user']}")
-        st.markdown(f"{st.session_state.nickname}:** {chat['reply']}")
-        st.markdown(f"Detected Mood: {chat['mood']} {mood_emoji}")
-        st.markdown("---")
+        st.experimental_rerun()
 
 # ----- Mood Overview Tab -----
 with tab_mood:
@@ -111,7 +126,7 @@ with tab_mood:
     else:
         st.info("No mood data yet. Start chatting to see your mood trend!")
 
-# Custom CSS for dark background and better visuals
+# Custom CSS for dark theme
 st.markdown("""
 <style>
 body {
