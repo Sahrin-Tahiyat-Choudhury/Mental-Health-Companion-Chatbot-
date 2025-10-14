@@ -6,6 +6,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 import datetime
 import plotly.express as px
+import uuid  # for unique keys
 
 # -----------------------------
 # Load secrets and initialize
@@ -32,26 +33,23 @@ if "nickname" not in st.session_state:
     st.session_state.nickname = "CalmMate"
 if "reflection_entries" not in st.session_state:
     st.session_state.reflection_entries = []
-if "reflection_temp" not in st.session_state:
-    st.session_state.reflection_temp = ""
-if "input_temp" not in st.session_state:
-    st.session_state.input_temp = ""
+
+# Dynamic keys to prevent API exception
+def get_new_key(prefix: str):
+    return f"{prefix}_{uuid.uuid4().hex[:6]}"
 
 # -----------------------------
 # App Layout
 # -----------------------------
 st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
-
-tabs = st.tabs(["💬 Chat", "📊 Mood Overview", "✍ Self-Reflection", "⚙ Settings"])
+tabs = st.tabs(["💬 Chat", "📈 Mood Trend", "✍ Self-Reflection", "⚙ Settings"])
 
 # -----------------------------
 # ⚙ Settings Tab
 # -----------------------------
 with tabs[3]:
     st.header("⚙ Settings")
-
-    nickname_input = st.text_input("Set AI Nickname:", value=st.session_state.nickname, key="nickname_input_box")
-
+    nickname_input = st.text_input("Set AI Nickname:", value=st.session_state.nickname, key=get_new_key("nick"))
     if st.button("Save Nickname"):
         st.session_state.nickname = nickname_input
         st.success(f"AI nickname updated to *{st.session_state.nickname}*!")
@@ -79,52 +77,50 @@ with tabs[0]:
                 "Happy": "😊", "Sad": "😢", "Stressed": "😟",
                 "Anxious": "😰", "Neutral": "😐", "Excited": "😃"
             }.get(mood, "😐")
-
             st.markdown(f"*You:* {user_msg}")
             st.markdown(f"{st.session_state.nickname}:** {ai_msg}")
             st.markdown(f"Detected Mood: {mood} {mood_emoji}")
             st.markdown("---")
 
-    user_input = st.text_input("You:", key="input_temp", placeholder="Type your message...")
+    # Use dynamic key to reset safely
+    user_input = st.text_input("You:", key=get_new_key("chat_input"), placeholder="Type your message...")
 
-    if st.button("Send", key="send_button"):
+    if st.button("Send", key=get_new_key("send_btn")):
         if user_input.strip():
             prompt = f"""
             You are a calm, compassionate AI companion named {st.session_state.nickname}.
-            Respond in a short, gentle, and supportive way (2–3 sentences max).
-            Avoid medical or personal advice.
+            Respond gently, briefly (2–3 sentences max), and supportively.
+            Avoid personal or medical advice.
             User: {user_input}
             """
             reply = model.generate_content(prompt).text
 
             mood_prompt = f"""
-            Determine the mood of this message. Respond with one word:
-            Happy, Sad, Stressed, Anxious, Neutral, Excited
+            Determine the user's mood (one word only): Happy, Sad, Stressed, Anxious, Neutral, or Excited.
             Message: {user_input}
             """
             mood = model.generate_content(mood_prompt).text.strip()
 
-            st.session_state.history.append({"user": user_input, "reply": reply, "mood": mood})
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.session_state.history.append({"time": timestamp, "user": user_input, "reply": reply, "mood": mood})
             db.reference("chat_history").set(st.session_state.history)
-
-            st.session_state.input_temp = ""
             st.rerun()
         else:
             st.warning("⚠ Please type something before sending.")
 
 # -----------------------------
-# 📊 Mood Overview Tab
+# 📈 Mood Trend Tab
 # -----------------------------
 with tabs[1]:
-    st.header("📊 Mood Overview")
+    st.header("📈 Mood Trend Over Time")
 
     if st.session_state.history:
-        mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
-        fig = px.bar(mood_counts, x=mood_counts.index, y=mood_counts.values,
-                     labels={'x': 'Mood', 'y': 'Count'}, title="Mood Frequency Chart")
+        df = pd.DataFrame(st.session_state.history)
+        df['time'] = pd.to_datetime(df['time'])
+        fig = px.line(df, x='time', y='mood', title="Mood Trend Over Time", markers=True)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No chat data yet. Your mood chart will appear here after chatting.")
+        st.info("No chat data yet. Your mood trend will appear here after chatting.")
 
 # -----------------------------
 # ✍ Self-Reflection Tab
@@ -132,23 +128,22 @@ with tabs[1]:
 with tabs[2]:
     st.header("✍ Self-Reflection")
 
-    reflection_text = st.text_area("Write your reflection:", key="reflection_temp", placeholder="Write your thoughts here...")
+    reflection_text = st.text_area("Write your reflection:", key=get_new_key("reflection_box"), placeholder="Write your thoughts here...")
 
-    if st.button("💾 Save Reflection"):
+    if st.button("💾 Save Reflection", key=get_new_key("save_btn")):
         if reflection_text.strip():
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             st.session_state.reflection_entries.append({"time": timestamp, "text": reflection_text})
             st.success("✅ Reflection saved!")
-            st.session_state.reflection_temp = ""
             st.rerun()
         else:
             st.warning("⚠ Please write something before saving.")
 
     if st.session_state.reflection_entries:
         st.write("### 📜 Your Saved Reflections")
-        for idx, entry in enumerate(st.session_state.reflection_entries):
+        for idx, entry in enumerate(reversed(st.session_state.reflection_entries)):
             st.markdown(f"🕒 {entry['time']}")
             st.write(entry['text'])
-            if st.button(f"🗑 Delete ({entry['time']})", key=f"del_{idx}"):
-                st.session_state.reflection_entries.pop(idx)
+            if st.button(f"🗑 Delete ({entry['time']})", key=get_new_key(f"del_{idx}")):
+                st.session_state.reflection_entries.pop(len(st.session_state.reflection_entries) - 1 - idx)
                 st.rerun()
