@@ -10,23 +10,32 @@ if "reflections" not in st.session_state:
 if "mood_data" not in st.session_state:
     st.session_state.mood_data = []
 
+if "reflection_temp" not in st.session_state:
+    st.session_state.reflection_temp = ""
+
+if "chat_temp" not in st.session_state:
+    st.session_state.chat_temp = ""
+
 st.title("💬 Self Reflection & Mood Tracker")
 
 # Tabs
-tab1, tab2, tab3 = st.tabs(["💭 Self Reflection", "📊 Mood Graph", "Chat Assistant"])
+tab1, tab2, tab3 = st.tabs(["💭 Self Reflection", "📊 Mood Graph", "🤖 Chat Assistant"])
 
 # --- Self Reflection Tab ---
 with tab1:
     st.subheader("🪞 Reflect on Your Day")
 
-    reflection = st.text_area("Write your reflection:", key="reflection_box", placeholder="Type your thoughts here...")
+    reflection = st.text_area("Write your reflection:", key="reflection_temp", placeholder="Type your thoughts here...")
 
     if st.button("Save Reflection"):
         if reflection.strip():
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.session_state.reflections.append({"time": timestamp, "text": reflection})
             st.success("✅ Reflection saved!")
-            st.session_state.reflection_box = ""  # Clear input automatically
+
+            # Clear the text area safely
+            st.session_state.reflection_temp = ""
+            st.rerun()
         else:
             st.warning("⚠ Please write something before saving.")
 
@@ -37,7 +46,7 @@ with tab1:
             st.write(entry['text'])
             if st.button(f"🗑 Delete {entry['time']}", key=f"delete_{i}"):
                 st.session_state.reflections.pop(i)
-                st.experimental_rerun()
+                st.rerun()
 
 # --- Mood Graph Tab ---
 with tab2:
@@ -59,12 +68,15 @@ with tab2:
 with tab3:
     st.subheader("💬 AI Chat Assistant")
 
-    user_input = st.text_input("Ask something or share your thoughts:", key="input_box")
+    user_input = st.text_input("Ask something or share your thoughts:", key="chat_temp")
 
     if st.button("Send"):
         if user_input.strip():
             st.write(f"*You:* {user_input}")
             st.write("*AI:* That's a thoughtful reflection. Keep going strong 💪")
-            st.session_state.input_box = ""  # Clears the chat box automatically
+
+            # Clear safely and rerun
+            st.session_state.chat_temp = ""
+            st.rerun()
         else:
             st.warning("Please type something before sending.")
