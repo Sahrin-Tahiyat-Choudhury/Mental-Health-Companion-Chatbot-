@@ -75,9 +75,9 @@ with tabs[0]:
             "Neutral": "😐",
             "Excited": "😃"
         }.get(mood, "😐")
-        st.markdown(f"*You:* {user_msg}")
-        st.markdown(f"{st.session_state.nickname}:** {ai_msg}")
-        st.markdown(f"Detected Mood: {mood} {mood_emoji}")
+        st.markdown(f"**You:** {user_msg}")
+        st.markdown(f"**{st.session_state.nickname}:** {ai_msg}")
+        st.markdown(f"**Detected Mood: {mood} {mood_emoji}**")
         st.markdown("---")
 
     # Chat input using form to avoid API exceptions
@@ -146,3 +146,4 @@ with tabs[2]:
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
                     st.experimental_rerun()
+
