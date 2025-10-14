@@ -5,125 +5,157 @@ import os
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
-import datetime
+import json
+from datetime import datetime
 
-# Load environment variables
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-firebase_url = os.getenv("FIREBASE_DB_URL")  # add this in .env
+# ------------------------
+# Load secrets
+# ------------------------
+api_key = st.secrets["GOOGLE_API_KEY"]
+firebase_key_dict = json.loads(st.secrets["FIREBASE_KEY_JSON"])
+firebase_url = st.secrets["FIREBASE_DATABASE_URL"]
 
+# ------------------------
 # Configure Gemini
+# ------------------------
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
+# ------------------------
 # Initialize Firebase
+# ------------------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")
+    cred = credentials.Certificate(firebase_key_dict)
     firebase_admin.initialize_app(cred, {"databaseURL": firebase_url})
 
-# Streamlit page config
-st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="centered")
+# ------------------------
+# Streamlit UI
+# ------------------------
+st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
 
+# ------------------------
 # Initialize session state
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
+# ------------------------
+if "history" not in st.session_state:
+    st.session_state.history = []
 if "journal_entries" not in st.session_state:
     st.session_state.journal_entries = []
-
-# Nickname input for AI
 if "nickname" not in st.session_state:
     st.session_state.nickname = "CalmMate"
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
 
-nickname = st.text_input("Set AI Nickname:", value=st.session_state.nickname)
-st.session_state.nickname = nickname
+# ------------------------
+# Tabs
+# ------------------------
+tabs = st.tabs(["💬 Chat", "📊 Mood Overview", "📝 Self-Reflection"])
 
-# Tabs: Chat, Mood Overview, Self-Reflection
-tab1, tab2, tab3 = st.tabs(["💬 Chat", "📊 Mood Overview", "📝 Self-Reflection"])
-
-# Helper functions
-def detect_mood(text):
-    prompt = f"""
-    Determine the mood of this user message. Respond with only ONE of these words:
-    Happy, Sad, Stressed, Anxious, Neutral, Excited
-
-    Message: {text}
-    """
-    response = model.generate_content(prompt)
-    return response.text.strip()
-
-def save_to_firebase(ref_name, data):
-    ref = db.reference(ref_name)
-    ref.set(data)
-
-# ------------------- Chat Tab -------------------
-with tab1:
-    st.header(f"Chat with {nickname}")
-
-    chat_placeholder = st.container()
-
-    user_input = st.text_input("You:", placeholder="Type your message here...")
-
+# ------------------------
+# Chat Tab
+# ------------------------
+with tabs[0]:
+    st.header(f"Chat with {st.session_state.nickname}")
+    
+    # Chat display container
+    chat_container = st.container()
+    
+    # Chat input
+    st.session_state.user_input = st.text_input(
+        "You:", value=st.session_state.user_input, placeholder="Type your message here..."
+    )
+    
     if st.button("🗑 Clear Chat"):
-        st.session_state.chat_history = []
-        save_to_firebase("chat_history", st.session_state.chat_history)
-        chat_placeholder.empty()
-
-    if user_input:
-        # Generate AI reply
+        st.session_state.history = []
+        db.reference("chat_history").set({})
+        chat_container.empty()
+    
+    # Process user input
+    if st.session_state.user_input:
+        user_msg = st.session_state.user_input
+        # Generate CalmMate reply
         prompt = f"""
-        You are a calm, compassionate AI companion. Respond gently.
-        Avoid inappropriate or unsafe topics. Keep it 2-3 sentences.
-
-        User: {user_input}
+        You are a calm, compassionate AI companion. Respond to the user in a gentle, neutral, and supportive way.
+        Do not offer medical advice. Avoid inappropriate or unsafe topics.
+        Keep the message concise (2–3 sentences).
+        User: {user_msg}
         """
-        reply = model.generate_content(prompt).text
-        mood = detect_mood(user_input)
+        with st.spinner("Thinking..."):
+            reply = model.generate_content(prompt).text
+        
+        # Detect mood
+        mood_prompt = f"""
+        Determine the mood of this user message. Respond with only ONE of these words:
+        Happy, Sad, Stressed, Anxious, Neutral, Excited
+        Message: {user_msg}
+        """
+        mood = model.generate_content(mood_prompt).text.strip()
+        
+        # Add to history
+        chat_entry = {"user": user_msg, "reply": reply, "mood": mood}
+        st.session_state.history.append(chat_entry)
+        db.reference("chat_history").set(st.session_state.history)
+        
+        # Clear input
+        st.session_state.user_input = ""
+    
+    # Display chat history (above input)
+    for chat in reversed(st.session_state.history):
+        # AI message (left)
+        st.markdown(
+            f"<div style='background-color:#2f2f2f; color:white; padding:10px; border-radius:10px; width:70%; margin-bottom:5px'>{st.session_state.nickname}: {chat['reply']}</div>",
+            unsafe_allow_html=True
+        )
+        # User message (right)
+        st.markdown(
+            f"<div style='background-color:#0a9396; color:white; padding:10px; border-radius:10px; width:70%; margin-left:30%; margin-bottom:5px'>You: {chat['user']}</div>",
+            unsafe_allow_html=True
+        )
+        # Mood
+        mood_emoji = {
+            "Happy": "😊",
+            "Sad": "😢",
+            "Stressed": "😟",
+            "Anxious": "😰",
+            "Neutral": "😐",
+            "Excited": "😃"
+        }.get(chat["mood"], "😐")
+        st.markdown(f"Detected Mood: {chat['mood']} {mood_emoji}")
+        st.markdown("---")
 
-        chat_entry = {"user": user_input, "reply": reply, "mood": mood}
-        st.session_state.chat_history.append(chat_entry)
-        save_to_firebase("chat_history", st.session_state.chat_history)
-
-    # Display chat
-    with chat_placeholder:
-        for chat in st.session_state.chat_history:
-            st.markdown(f"<div style='text-align:right; background-color:#1f1f1f; color:#f5f5f5; padding:8px; border-radius:8px;'>You: {chat['user']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='text-align:left; background-color:#333333; color:#ffffff; padding:8px; border-radius:8px;'> {nickname}: {chat['reply']}</div>", unsafe_allow_html=True)
-            st.markdown(f"Detected Mood: {chat['mood']}")
-            st.markdown("---")
-
-# ------------------- Mood Overview Tab -------------------
-with tab2:
-    st.header("📊 Mood Overview")
-    if st.session_state.chat_history:
-        mood_counts = pd.Series([c["mood"] for c in st.session_state.chat_history]).value_counts()
+# ------------------------
+# Mood Overview Tab
+# ------------------------
+with tabs[1]:
+    st.header("Mood Overview")
+    if st.session_state.history:
+        mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
         st.bar_chart(mood_counts)
     else:
-        st.info("Your mood stats will appear here after chatting.")
+        st.info("No chat data yet to display mood overview.")
 
-# ------------------- Self-Reflection Tab -------------------
-with tab3:
-    st.header("📝 Self-Reflection")
-
-    reflection_input = st.text_area("Write your thoughts here...")
+# ------------------------
+# Self-Reflection Tab
+# ------------------------
+with tabs[2]:
+    st.header("Self Reflection")
+    reflection_text = st.text_area("Write your thoughts here...")
+    
     if st.button("💾 Save Reflection"):
-        if reflection_input.strip():
-            mood = detect_mood(reflection_input)
-            entry = {"text": reflection_input, "time": str(datetime.datetime.now()), "mood": mood}
+        if reflection_text.strip():
+            entry = {"text": reflection_text.strip(), "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
             st.session_state.journal_entries.append(entry)
-            save_to_firebase("journal_entries", st.session_state.journal_entries)
+            db.reference("journal_entries").set(st.session_state.journal_entries)
             st.success("Reflection saved!")
-        else:
-            st.warning("Please write something before saving.")
-
-    st.subheader("Your Past Reflections")
-    for idx, entry in enumerate(reversed(st.session_state.journal_entries)):
-        st.markdown(f"Time: {entry['time']}")
-        st.markdown(f"Mood: {entry['mood']}")
-        st.markdown(f"> {entry['text']}")
-        if st.button(f"🗑 Delete Entry {idx}"):
-            real_idx = len(st.session_state.journal_entries) - 1 - idx
-            st.session_state.journal_entries.pop(real_idx)
-            save_to_firebase("journal_entries", st.session_state.journal_entries)
-            st.experimental_rerun()
-        st.markdown("---")
+    
+    # Reflection display container
+    reflection_container = st.container()
+    with reflection_container:
+        for idx, entry in enumerate(reversed(st.session_state.journal_entries)):
+            st.markdown(f"Time: {entry['time']}")
+            st.markdown(f"> {entry['text']}")
+            if st.button(f"🗑 Delete Entry {idx}", key=f"del{idx}"):
+                real_idx = len(st.session_state.journal_entries) - 1 - idx
+                st.session_state.journal_entries.pop(real_idx)
+                db.reference("journal_entries").set(st.session_state.journal_entries)
+                reflection_container.empty()
+                break
