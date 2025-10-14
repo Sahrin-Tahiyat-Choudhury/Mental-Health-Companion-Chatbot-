@@ -1,124 +1,121 @@
 import streamlit as st
 import google.generativeai as genai
-import pandas as pd
+from dotenv import load_dotenv
+import os
 import json
-from firebase_admin import credentials, db, initialize_app
+import pandas as pd
+import firebase_admin
+from firebase_admin import credentials, db
 
-# -------------------------
-# Streamlit page settings
-# -------------------------
-st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
+# Load environment variables if needed
+load_dotenv()
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# -------------------------
-# User nickname
-# -------------------------
-if "nickname" not in st.session_state:
-    st.session_state.nickname = "CalmMate"
-
-nickname_input = st.text_input("Give your AI companion a nickname:", value=st.session_state.nickname)
-if nickname_input:
-    st.session_state.nickname = nickname_input
-
-# -------------------------
 # Configure Gemini
-# -------------------------
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
-# -------------------------
 # Initialize Firebase safely
-# -------------------------
-if not len(db._apps):
-    cred = credentials.Certificate(json.loads(st.secrets["FIREBASE_KEY_JSON"]))
-    initialize_app(cred, {"databaseURL": st.secrets["FIREBASE_DATABASE_URL"]})
+try:
+    firebase_admin.get_app()
+except ValueError:
+    firebase_key_dict = json.loads(st.secrets["FIREBASE_KEY_JSON"])
+    cred = credentials.Certificate(firebase_key_dict)
+    firebase_admin.initialize_app(cred, {"databaseURL": st.secrets["FIREBASE_DATABASE_URL"]})
 
-# -------------------------
+# Streamlit UI
+st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
+
+# Sidebar - nickname
+st.sidebar.title("Settings")
+nickname = st.sidebar.text_input("Choose your chatbot nickname:", value="CalmMate")
+
+# Tabs
+tab1, tab2 = st.tabs(["Chat", "Mood Overview"])
+
 # Initialize session state
-# -------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# -------------------------
-# Tabs for Chat and Mood
-# -------------------------
-tab1, tab2 = st.tabs(["💬 Chat", "📊 Mood Overview"])
+if "cleared" not in st.session_state:
+    st.session_state.cleared = False
+
+def detect_mood(text):
+    prompt = f"""
+    Determine the mood of this user message. Respond with only ONE of these words: 
+    Happy, Sad, Stressed, Anxious, Neutral, Excited
+
+    Message: {text}
+    """
+    response = model.generate_content(prompt)
+    return response.text.strip()
+
+def save_to_firebase(chat_list):
+    ref = db.reference("chat_history")
+    ref.set(chat_list)
 
 with tab1:
-    # Chat display
-    chat_container = st.container()
+    # Chat input
+    user_input = st.text_input("You:", placeholder="Type your message here...", key="user_input")
 
-    # Clear chat
+    # Clear chat button
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
-        db.reference("chat_history").set({})
-        st.success("Chat cleared!")
+        save_to_firebase(st.session_state.history)
+        st.session_state.cleared = True
 
-    # Chat input
-    user_input = st.text_input("You:", placeholder="Type here...")
-
-    # Functions
-    def detect_mood(text):
-        prompt = f"""
-        Determine the mood of this user message. Respond with only ONE of these words: 
-        Happy, Sad, Stressed, Anxious, Neutral, Excited
-        Message: {text}
-        """
-        response = model.generate_content(prompt)
-        return response.text.strip()
-
-    def save_to_firebase(chat_list):
-        db.reference("chat_history").set(chat_list)
+    if st.session_state.cleared:
+        st.success("Chat cleared! Start a new conversation.")
+        st.session_state.cleared = False
 
     if user_input:
-        # Generate AI reply
         prompt = f"""
-        You are a calm, compassionate AI companion. Respond in a gentle, supportive way.
-        Do not offer medical advice or inappropriate content.
-        Keep it concise (2–3 sentences).
-        Avoid haram suggestions.
+        You are a calm, compassionate AI companion named {nickname}. 
+        Respond to the user in a gentle, neutral, and supportive way.
+        Do not offer medical advice. Avoid inappropriate or unsafe topics. 
+        Keep the message concise (2–3 sentences). 
+
         User: {user_input}
         """
         with st.spinner("Thinking..."):
             reply = model.generate_content(prompt).text
 
         mood = detect_mood(user_input)
-
         chat_entry = {"user": user_input, "reply": reply, "mood": mood}
         st.session_state.history.append(chat_entry)
         save_to_firebase(st.session_state.history)
 
-    # Display chat history in ChatGPT style
-    for chat in st.session_state.history:
-        col1, col2 = st.columns([1, 4])
-        mood_emoji = {
-            "Happy": "😊",
-            "Sad": "😢",
-            "Stressed": "😟",
-            "Anxious": "😰",
-            "Neutral": "😐",
-            "Excited": "😃"
-        }.get(chat["mood"], "😐")
-
-        # User message on right
-        with col2:
-            st.markdown(
-                f"<div style='background-color:#1f1f1f; padding:10px; border-radius:8px; text-align:right;'>*You:* {chat['user']}</div>",
-                unsafe_allow_html=True,
-            )
-
-        # AI message on left
-        with col1:
-            st.markdown(
-                f"<div style='background-color:#2b2b2b; padding:10px; border-radius:8px;'>{st.session_state.nickname}:** {chat['reply']}</div>",
-                unsafe_allow_html=True,
-            )
-        st.markdown(f"Detected Mood: {chat['mood']} {mood_emoji}")
-        st.markdown("---")
+    # Display chat history with dark colors, like ChatGPT
+    if st.session_state.history:
+        st.markdown(
+            """
+            <style>
+            .user-msg {background-color:#2E3440; color:white; padding:10px; border-radius:10px; text-align:right;}
+            .ai-msg {background-color:#3B4252; color:white; padding:10px; border-radius:10px; text-align:left;}
+            .chat-box {max-height:500px; overflow-y:auto; padding:10px;}
+            </style>
+            """, unsafe_allow_html=True
+        )
+        st.markdown('<div class="chat-box">', unsafe_allow_html=True)
+        for chat in st.session_state.history:
+            mood_emoji = {
+                "Happy": "😊",
+                "Sad": "😢",
+                "Stressed": "😟",
+                "Anxious": "😰",
+                "Neutral": "😐",
+                "Excited": "😃"
+            }.get(chat["mood"], "😐")
+            st.markdown(f'<div class="user-msg">You: {chat["user"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="ai-msg">{nickname}: {chat["reply"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'Detected Mood: {chat["mood"]} {mood_emoji}', unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 with tab2:
-    # Mood overview
+    # Mood Overview
     if st.session_state.history:
         mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
         st.bar_chart(mood_counts)
     else:
-        st.info("No mood data yet. Start chatting to see mood trends!")
+        st.write("No moods to display yet. Start chatting!")
