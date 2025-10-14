@@ -1,4 +1,3 @@
-from streamlit_javascript import st_javascript
 import streamlit as st
 import google.generativeai as genai
 import json
@@ -33,33 +32,31 @@ if "nickname" not in st.session_state:
     st.session_state.nickname = "CalmMate"
 if "reflection_entries" not in st.session_state:
     st.session_state.reflection_entries = []
-if "input_box" not in st.session_state:
-    st.session_state.input_box = ""
-if "reflection_box" not in st.session_state:
-    st.session_state.reflection_box = ""
+if "clear_input" not in st.session_state:
+    st.session_state.clear_input = False
+if "clear_reflection" not in st.session_state:
+    st.session_state.clear_reflection = False
 
 # -----------------------------
 # App Layout
 # -----------------------------
 st.set_page_config(page_title="Mental Health Companion", page_icon="💬", layout="wide")
-
 tabs = st.tabs(["💬 Chat", "📈 Mood Overview", "✍ Self-Reflection", "⚙ Settings"])
 
 # -----------------------------
-# ⚙ Settings Tab
+# Settings Tab
 # -----------------------------
 with tabs[3]:
     st.header("⚙ Settings")
-    nickname_input = st.text_input("Set AI Nickname:", value=st.session_state.nickname, key="nickname_input")
+    nickname_input = st.text_input(
+        "Set AI Nickname:", value=st.session_state.nickname, key="nickname_input"
+    )
     if st.button("Save Nickname"):
-        st.session_state.nickname = nickname_input
+        st.session_state.nickname = nickname_input.strip() or st.session_state.nickname
         st.success(f"AI nickname updated to {st.session_state.nickname}!")
 
 # -----------------------------
-# 💬 Chat Tab
-# -----------------------------
-# -----------------------------
-# 💬 Chat Tab
+# Chat Tab
 # -----------------------------
 with tabs[0]:
     st.header(f"💬 Chat with {st.session_state.nickname}")
@@ -69,49 +66,54 @@ with tabs[0]:
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
 
-    # Show conversation in a scrollable container
+    # Show conversation in a container
     chat_container = st.container()
-    for chat in st.session_state.history:
-        st.markdown(f"*You ({chat['time']}):* {chat['user']}")
-        st.markdown(f"{st.session_state.nickname} ({chat['time']}):** {chat['reply']}")
-        st.markdown(f"Detected Mood: {chat['mood']}")
-        st.markdown("---")
+    with chat_container:
+        for chat in st.session_state.history:
+            st.markdown(f"*You:* {chat['user']}")
+            st.markdown(f"{st.session_state.nickname}:** {chat['reply']}")
+            st.markdown(f"Detected Mood: {chat['mood']}")
+            st.markdown("---")
 
-    # Input box and send
-    user_input = st.text_input("Type your message:", key="input_box")
+    # Chat input
+    user_input = st.text_input(
+        "Type your message:",
+        value="" if st.session_state.clear_input else "",
+        key="input_box"
+    )
 
-    if st.button("Send", key="send_btn"):
+    if st.button("Send", key="send_button"):
         if user_input.strip():
-            # AI reply
             prompt = f"""
-            You are a compassionate AI companion named {st.session_state.nickname}.
-            Respond gently, in 2–3 sentences, avoiding medical or inappropriate advice.
+            You are a calm, compassionate AI companion named {st.session_state.nickname}.
+            Respond gently, neutrally, and supportively.
+            Avoid medical or inappropriate advice. Keep concise (2–3 sentences).
             User: {user_input}
             """
             reply = model.generate_content(prompt).text.strip()
 
             # Mood detection
             mood_prompt = f"""
-            Determine the user's mood (one word): Happy, Sad, Stressed, Anxious, Neutral, or Excited.
+            Determine the user's mood (one word): Happy, Sad, Stressed, Anxious, Neutral, Excited.
             Message: {user_input}
             """
             mood = model.generate_content(mood_prompt).text.strip()
 
-            # Timestamp in user's local timezone (fallback to server time)
-            import datetime
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-
-            # Save to session & Firebase
-            st.session_state.history.append({"time": timestamp, "user": user_input, "reply": reply, "mood": mood})
+            st.session_state.history.append({
+                "time": timestamp, "user": user_input, "reply": reply, "mood": mood
+            })
             db.reference("chat_history").set(st.session_state.history)
 
             # Clear input
-            st.session_state.input_box = ""
-            st.experimental_rerun()
+            st.session_state.clear_input = True
         else:
             st.warning("Please type something before sending!")
+    else:
+        st.session_state.clear_input = False
+
 # -----------------------------
-# 📈 Mood Overview Tab
+# Mood Overview Tab
 # -----------------------------
 with tabs[1]:
     st.header("📈 Mood Overview")
@@ -121,24 +123,31 @@ with tabs[1]:
         fig = px.bar(df, x="time", y="mood", title="Mood Over Time")
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No data yet. Chat to generate your mood chart.")
+        st.info("No chat data yet. Your mood chart will appear here after chatting.")
 
 # -----------------------------
-# ✍ Self-Reflection Tab
+# Self-Reflection Tab
 # -----------------------------
 with tabs[2]:
     st.header("✍ Self-Reflection")
+    reflection_text = st.text_area(
+        "Write your thoughts here:",
+        value="" if st.session_state.clear_reflection else "",
+        key="reflection_box"
+    )
 
-    reflection_text = st.text_area("Write your thoughts here:", key="reflection_box")
-    if st.button("Save Reflection", key="save_ref_btn"):
+    if st.button("Save Reflection"):
         if reflection_text.strip():
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            st.session_state.reflection_entries.append({"time": timestamp, "text": reflection_text})
-            st.session_state.reflection_box = ""  # clear after saving
+            st.session_state.reflection_entries.append({
+                "time": timestamp, "text": reflection_text
+            })
             st.success("Reflection saved!")
-            st.experimental_rerun()
+            st.session_state.clear_reflection = True
         else:
             st.warning("Write something before saving!")
+    else:
+        st.session_state.clear_reflection = False
 
     if st.session_state.reflection_entries:
         st.subheader("📝 Your Reflections")
