@@ -123,7 +123,7 @@ with tabs[1]:
         fig = px.bar(df, x="time", y="mood", title="Mood Over Time")
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No chat data yet. Your mood chart will appear here after chatting.")
+        st.info("*No chat data yet. Your mood chart will appear here after chatting :)*")
 
 # -----------------------------
 # Self-Reflection Tab
@@ -158,6 +158,7 @@ with tabs[2]:
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
                     st.experimental_rerun()
+
 
 
 
