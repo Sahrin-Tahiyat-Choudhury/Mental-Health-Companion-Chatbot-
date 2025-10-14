@@ -56,38 +56,26 @@ with tabs[3]:
         st.success(f"AI nickname updated to {st.session_state.nickname}!")
 
 # -----------------------------
-# Chat Tab
+# 💬 Chat Tab
 # -----------------------------
 with tabs[0]:
     st.header(f"💬 Chat with {st.session_state.nickname}")
 
+    # Clear chat button
     if st.button("🗑 Clear Chat"):
         st.session_state.history.clear()
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
 
-    # Show conversation in a container
-    chat_container = st.container()
-    with chat_container:
-        for chat in st.session_state.history:
-            st.markdown(f"**You:** {chat['user']}")
-            st.markdown(f"**{st.session_state.nickname}:** {chat['reply']}")
-            st.markdown(f"*Detected Mood: {chat['mood']}*")
-            st.markdown("---")
-
     # Chat input
-    user_input = st.text_input(
-        "Type your message:",
-        value="" if st.session_state.clear_input else "",
-        key="input_box"
-    )
+    user_input = st.text_input("Type your message:", key="input_box")
 
     if st.button("Send", key="send_button"):
         if user_input.strip():
+            # Generate AI reply
             prompt = f"""
             You are a calm, compassionate AI companion named {st.session_state.nickname}.
-            Respond gently, neutrally, and supportively.
-            Avoid medical or inappropriate advice. Keep concise (2–3 sentences).
+            Respond gently, in 2–3 sentences, avoiding medical advice or inappropriate topics.
             User: {user_input}
             """
             reply = model.generate_content(prompt).text.strip()
@@ -99,18 +87,35 @@ with tabs[0]:
             """
             mood = model.generate_content(mood_prompt).text.strip()
 
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            # Save to session & Firebase
             st.session_state.history.append({
-                "time": timestamp, "user": user_input, "reply": reply, "mood": mood
+                "user": user_input,
+                "reply": reply,
+                "mood": mood
             })
             db.reference("chat_history").set(st.session_state.history)
 
-            # Clear input
-            st.session_state.clear_input = True
-        else:
-            st.warning("Please type something before sending!")
-    else:
-        st.session_state.clear_input = False
+            # Clear input after sending
+            st.session_state.input_box = ""
+
+    # Display chat messages immediately above input
+    for chat in st.session_state.history:
+        user_msg = chat["user"]
+        ai_msg = chat["reply"]
+        mood = chat["mood"]
+        mood_emoji = {
+            "Happy": "😊",
+            "Sad": "😢",
+            "Stressed": "😟",
+            "Anxious": "😰",
+            "Neutral": "😐",
+            "Excited": "😃"
+        }.get(mood, "😐")
+
+        st.markdown(f"*You:* {user_msg}")
+        st.markdown(f"{st.session_state.nickname}:** {ai_msg}")
+        st.markdown(f"Detected Mood: {mood} {mood_emoji}")
+        st.markdown("---")
 
 # -----------------------------
 # Mood Overview Tab
@@ -158,6 +163,7 @@ with tabs[2]:
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
                     st.experimental_rerun()
+
 
 
 
