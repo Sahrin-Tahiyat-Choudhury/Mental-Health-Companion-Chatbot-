@@ -127,10 +127,14 @@ with tabs[2]:
     st.text_area("Write your reflection here:", key="reflection_box")
     st.button("💾 Save Reflection", on_click=save_reflection)
 
-    if st.session_state.reflections:
-        st.markdown("### Saved Reflections")
-        for idx, ref in enumerate(st.session_state.reflections):
-            st.write(ref["text"])
-            if st.button(f"🗑 Delete", key=f"del_{idx}"):
-                st.session_state.reflections.pop(idx)
-                st.experimental_rerun()
+    # Display saved reflections
+if st.session_state.reflections:
+    st.markdown("### Saved Reflections")
+    for idx, ref in enumerate(st.session_state.reflections.copy()):  # copy to avoid iteration issues
+        st.write(ref["text"])
+        delete_key = f"del_{idx}"
+        if st.button("🗑 Delete", key=delete_key):
+            # remove the correct reflection
+            st.session_state.reflections.pop(idx)
+            st.experimental_rerun()  # rerun to refresh UI
+
