@@ -25,7 +25,6 @@ except ValueError:
         "databaseURL": st.secrets["FIREBASE_DATABASE_URL"]
     })
 
-# Streamlit UI
 st.set_page_config(page_title="CalmMate - AI Companion", page_icon="💬", layout="wide")
 st.title("💬 CalmMate – Your Supportive AI Companion")
 
@@ -35,7 +34,6 @@ tab1, tab2, tab3 = st.tabs(["Chat", "Mood Overview", "Self Reflection"])
 # Nickname option
 if "nickname" not in st.session_state:
     st.session_state.nickname = "CalmMate"
-
 nickname_input = st.text_input("Set your AI nickname:", st.session_state.nickname)
 if nickname_input:
     st.session_state.nickname = nickname_input
@@ -49,14 +47,19 @@ if "reflections" not in st.session_state:
 
 # --- Chat Tab ---
 with tab1:
-    # Clear chat
+    # Placeholder for chat container
+    chat_container = st.empty()
+
+    # Clear chat button
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
         db.reference("chat_history").set({})
         st.experimental_rerun()
 
-    # Chat input
-    user_input = st.text_input("You:", key="input_box", placeholder="Type here...")
+    # Chat input using st.form for safe state updates
+    with st.form(key="chat_form", clear_on_submit=True):
+        user_input = st.text_input("You:", placeholder="Type here...", key="chat_input")
+        submitted = st.form_submit_button("Send")
 
     def detect_mood(text):
         prompt = f"""
@@ -73,7 +76,7 @@ with tab1:
         ref = db.reference("chat_history")
         ref.set(chat_list)
 
-    if user_input:
+    if submitted and user_input:
         # Generate AI reply
         prompt = f"""
         You are a calm, compassionate AI companion. Respond to the user in a gentle, neutral, and supportive way.
@@ -91,11 +94,9 @@ with tab1:
         st.session_state.history.append(chat_entry)
         save_to_firebase(st.session_state.history)
 
-        # Clear input automatically
-        st.session_state.input_box = ""
-
-    # Display chat history above input
+    # Render chat messages (scrollable)
     if st.session_state.history:
+        chat_html = ""
         for chat in reversed(st.session_state.history):
             mood_emoji = {
                 "Happy": "😊",
@@ -105,17 +106,17 @@ with tab1:
                 "Neutral": "😐",
                 "Excited": "😃"
             }.get(chat["mood"], "😐")
-            
-            # User message (right)
-            st.markdown(
-                f"<div style='text-align: right; background-color: #2b2b2b; color: #ffffff; padding: 8px; border-radius: 10px; margin-bottom: 5px;'>"
-                f"<b>You:</b> {chat['user']}</div>", unsafe_allow_html=True
-            )
-            # AI reply (left)
-            st.markdown(
-                f"<div style='text-align: left; background-color: #1f1f1f; color: #a8dadc; padding: 8px; border-radius: 10px; margin-bottom: 10px;'>"
-                f"<b>{st.session_state.nickname}:</b> {chat['reply']}<br><i>Mood:</i> {chat['mood']} {mood_emoji}</div>", unsafe_allow_html=True
-            )
+            chat_html += f"""
+            <div style='display:flex; flex-direction:column; margin-bottom:8px;'>
+                <div style='align-self:flex-end; background-color:#2b2b2b; color:white; padding:8px; border-radius:10px; max-width:70%;'>
+                    <b>You:</b> {chat['user']}
+                </div>
+                <div style='align-self:flex-start; background-color:#1f1f1f; color:#a8dadc; padding:8px; border-radius:10px; max-width:70%; margin-top:3px;'>
+                    <b>{st.session_state.nickname}:</b> {chat['reply']}<br><i>Mood:</i> {chat['mood']} {mood_emoji}
+                </div>
+            </div>
+            """
+        chat_container.markdown(f"<div style='max-height:500px; overflow-y:auto;'>{chat_html}</div>", unsafe_allow_html=True)
 
 # --- Mood Overview Tab ---
 with tab2:
@@ -127,14 +128,15 @@ with tab2:
 
 # --- Self Reflection Tab ---
 with tab3:
-    reflection_input = st.text_area("Write your reflection here:", key="reflection_box")
-    if st.button("💾 Save Reflection"):
-        if reflection_input.strip():
-            st.session_state.reflections.append(reflection_input)
-            st.session_state.reflection_box = ""  # clear input
-            st.experimental_rerun()
+    # Reflection input form
+    with st.form(key="reflection_form", clear_on_submit=True):
+        reflection_input = st.text_area("Write your reflection here:", key="reflection_box")
+        submitted_reflection = st.form_submit_button("💾 Save Reflection")
+    if submitted_reflection and reflection_input.strip():
+        st.session_state.reflections.append(reflection_input)
+        st.experimental_rerun()
 
-    # Show saved reflections
+    # Display saved reflections with delete option
     if st.session_state.reflections:
         st.markdown("### Saved Reflections")
         for i, ref in enumerate(st.session_state.reflections):
