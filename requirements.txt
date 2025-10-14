@@ -3,3 +3,4 @@ google-generativeai
 python-dotenv
 firebase-admin
 pandas
+openai
