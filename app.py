@@ -103,18 +103,54 @@ with tab2:
         st.info("No chat history yet.")
 
 # ------------------- SELF REFLECTION TAB -------------------
+# ------------------- SELF REFLECTION TAB -------------------
 with tab3:
     st.markdown("### Self Reflection")
+    
     # Reflection input form
     with st.form(key="reflection_form", clear_on_submit=True):
         reflection = st.text_area("Write your thoughts here:", key="reflection_box")
         reflection_submitted = st.form_submit_button("Save Reflection")
         if reflection_submitted and reflection.strip():
-            st.session_state.reflections.append(reflection)
+            # Detect mood of reflection
+            mood_prompt = f"""
+            Determine the mood of this reflection text. Respond with only ONE of these words:
+            Happy, Sad, Stressed, Anxious, Neutral, Excited
+            Reflection: {reflection}
+            """
+            mood = model.generate_content(mood_prompt).text.strip()
+            
+            st.session_state.reflections.append({"text": reflection, "mood": mood})
     
     # Display saved reflections
-    for idx, r in enumerate(st.session_state.reflections):
-        st.markdown(f"{idx+1}. {r}")
-        if st.button(f"Delete {idx}", key=f"del_{idx}"):
-            st.session_state.reflections.pop(idx)
-            st.experimental_rerun = lambda: None  # dummy placeholder
+    if st.session_state.reflections:
+        st.markdown("#### Your Reflections")
+        triggers = {}
+        for idx, r in enumerate(st.session_state.reflections):
+            text = r["text"]
+            mood = r["mood"]
+            
+            # Simple trigger detection
+            keywords = ["exam", "stress", "failure", "bully", "peer", "pressure", "sleep", "tired"]
+            found_triggers = [k for k in keywords if k.lower() in text.lower()]
+            for t in found_triggers:
+                triggers[t] = triggers.get(t, 0) + 1
+            
+            st.markdown(f"{idx+1}. {text} (Mood: {mood})")
+            if st.button(f"Delete {idx}", key=f"del_{idx}"):
+                st.session_state.reflections.pop(idx)
+                st.experimental_rerun = lambda: None  # dummy placeholder
+
+        # Mood overview for reflections
+        mood_counts = pd.Series([r["mood"] for r in st.session_state.reflections]).value_counts()
+        st.bar_chart(mood_counts)
+
+        # Show top triggers
+        if triggers:
+            st.markdown("#### Most Common Triggers Detected")
+            for t, count in triggers.items():
+                st.markdown(f"- {t}: {count} times")
+
+        # Gentle daily reminder
+        if "Stressed" in mood_counts and mood_counts["Stressed"] > 1:
+            st.info("You seem stressed in multiple reflections. Take small breaks, breathe, and focus on what you can control today.")
