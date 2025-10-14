@@ -20,8 +20,12 @@ model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
 # Initialize Firebase
 if not firebase_admin._apps:
-    cred = credentials.Certificate(firebase_key_dict)
-    firebase_admin.initialize_app(cred, {"databaseURL": firebase_db_url})
+    try:
+        cred = credentials.Certificate(firebase_key_dict)
+        firebase_admin.initialize_app(cred, {"databaseURL": firebase_db_url})
+    except ValueError:
+        # Already initialized
+        pass
 
 # -----------------------------
 # Initialize session states
@@ -146,4 +150,5 @@ with tabs[2]:
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
                     st.experimental_rerun()
+
 
