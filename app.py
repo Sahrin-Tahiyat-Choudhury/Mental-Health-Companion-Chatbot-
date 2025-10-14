@@ -1,3 +1,4 @@
+from streamlit_javascript import st_javascript
 import streamlit as st
 import google.generativeai as genai
 import json
@@ -57,6 +58,9 @@ with tabs[3]:
 # -----------------------------
 # 💬 Chat Tab
 # -----------------------------
+# -----------------------------
+# 💬 Chat Tab
+# -----------------------------
 with tabs[0]:
     st.header(f"💬 Chat with {st.session_state.nickname}")
 
@@ -65,19 +69,20 @@ with tabs[0]:
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
 
-    # Show conversation
-    chat_placeholder = st.container()
+    # Show conversation in a scrollable container
+    chat_container = st.container()
     for chat in st.session_state.history:
-        st.markdown(f"*You:* {chat['user']}")
-        st.markdown(f"{st.session_state.nickname}:** {chat['reply']}")
+        st.markdown(f"*You ({chat['time']}):* {chat['user']}")
+        st.markdown(f"{st.session_state.nickname} ({chat['time']}):** {chat['reply']}")
         st.markdown(f"Detected Mood: {chat['mood']}")
         st.markdown("---")
 
     # Input box and send
-    user_input = st.text_input("Type your message:", value=st.session_state.input_box, key="input_text")
+    user_input = st.text_input("Type your message:", key="input_box")
 
-    if st.button("Send"):
+    if st.button("Send", key="send_btn"):
         if user_input.strip():
+            # AI reply
             prompt = f"""
             You are a compassionate AI companion named {st.session_state.nickname}.
             Respond gently, in 2–3 sentences, avoiding medical or inappropriate advice.
@@ -85,21 +90,26 @@ with tabs[0]:
             """
             reply = model.generate_content(prompt).text.strip()
 
+            # Mood detection
             mood_prompt = f"""
             Determine the user's mood (one word): Happy, Sad, Stressed, Anxious, Neutral, or Excited.
             Message: {user_input}
             """
             mood = model.generate_content(mood_prompt).text.strip()
 
+            # Timestamp in user's local timezone (fallback to server time)
+            import datetime
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+            # Save to session & Firebase
             st.session_state.history.append({"time": timestamp, "user": user_input, "reply": reply, "mood": mood})
             db.reference("chat_history").set(st.session_state.history)
 
-            st.session_state.input_box = ""  # clear text input
-            st.rerun()
+            # Clear input
+            st.session_state.input_box = ""
+            st.experimental_rerun()
         else:
             st.warning("Please type something before sending!")
-
 # -----------------------------
 # 📈 Mood Overview Tab
 # -----------------------------
@@ -119,14 +129,14 @@ with tabs[1]:
 with tabs[2]:
     st.header("✍ Self-Reflection")
 
-    reflection_text = st.text_area("Write your thoughts here:", value=st.session_state.reflection_box, key="reflection_text")
-    if st.button("Save Reflection"):
+    reflection_text = st.text_area("Write your thoughts here:", key="reflection_box")
+    if st.button("Save Reflection", key="save_ref_btn"):
         if reflection_text.strip():
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             st.session_state.reflection_entries.append({"time": timestamp, "text": reflection_text})
-            st.session_state.reflection_box = ""
+            st.session_state.reflection_box = ""  # clear after saving
             st.success("Reflection saved!")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.warning("Write something before saving!")
 
@@ -138,4 +148,4 @@ with tabs[2]:
                 if st.button("Delete", key=f"del_ref_{idx}"):
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
-                    st.rerun()
+                    st.experimental_rerun()
