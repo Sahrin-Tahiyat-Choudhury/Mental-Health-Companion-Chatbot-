@@ -30,6 +30,10 @@ if "nickname" not in st.session_state:
     st.session_state.nickname = "CalmMate"
 if "reflection_entries" not in st.session_state:
     st.session_state.reflection_entries = []
+if "input_value" not in st.session_state:
+    st.session_state.input_value = ""
+if "reflection_value" not in st.session_state:
+    st.session_state.reflection_value = ""
 
 # -----------------------------
 # App Layout
@@ -55,13 +59,11 @@ with tabs[3]:
 with tabs[0]:
     st.header("💬 Chat with " + st.session_state.nickname)
 
-    # Clear chat button
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
         db.reference("chat_history").set({})
         st.success("Chat cleared!")
 
-    # Chat messages
     chat_container = st.container()
     with chat_container:
         for chat in reversed(st.session_state.history):
@@ -81,30 +83,34 @@ with tabs[0]:
             st.markdown(f"Detected Mood: {mood} {mood_emoji}")
             st.markdown("---")
 
-    # Chat input
-    user_input = st.text_input("You:", key="input_box")
-    if st.button("Send", key="send_button") and user_input.strip() != "":
-        prompt = f"""
-        You are a calm, compassionate AI companion. Respond gently, neutrally, and supportively.
-        Avoid medical advice or inappropriate topics. Keep concise (2–3 sentences).
-        User: {user_input}
-        """
-        reply = model.generate_content(prompt).text
+    # Chat input field
+    user_input = st.text_input("You:", value=st.session_state.input_value, key="input_box")
 
-        # Mood detection
-        mood_prompt = f"""
-        Determine the mood of this user message. Respond with only one word:
-        Happy, Sad, Stressed, Anxious, Neutral, Excited
-        Message: {user_input}
-        """
-        mood = model.generate_content(mood_prompt).text.strip()
+    # Send message
+    if st.button("Send", key="send_button"):
+        if user_input.strip():
+            prompt = f"""
+            You are a calm, compassionate AI companion. Respond gently, neutrally, and supportively.
+            Avoid medical advice or inappropriate topics. Keep concise (2–3 sentences).
+            User: {user_input}
+            """
+            reply = model.generate_content(prompt).text
 
-        # Save to session & Firebase
-        st.session_state.history.append({"user": user_input, "reply": reply, "mood": mood})
-        db.reference("chat_history").set(st.session_state.history)
+            # Mood detection
+            mood_prompt = f"""
+            Determine the mood of this user message. Respond with only one word:
+            Happy, Sad, Stressed, Anxious, Neutral, Excited
+            Message: {user_input}
+            """
+            mood = model.generate_content(mood_prompt).text.strip()
 
-        # Clear input
-        st.session_state.input_box = ""
+            # Save to session and Firebase
+            st.session_state.history.append({"user": user_input, "reply": reply, "mood": mood})
+            db.reference("chat_history").set(st.session_state.history)
+
+            # Clear input safely
+            st.session_state.input_value = ""
+            st.rerun()
 
 # -----------------------------
 # Mood Overview Tab
@@ -122,17 +128,17 @@ with tabs[1]:
 # -----------------------------
 with tabs[2]:
     st.header("✍ Self-Reflection")
-    reflection_text = st.text_area("Write your thoughts here:", key="reflection_box")
+    reflection_text = st.text_area("Write your thoughts here:", value=st.session_state.reflection_value, key="reflection_box")
     if st.button("Save Reflection"):
         if reflection_text.strip():
             st.session_state.reflection_entries.append(reflection_text)
             st.success("Reflection saved!")
-            st.session_state.reflection_box = ""
+            st.session_state.reflection_value = ""
+            st.rerun()
 
     if st.session_state.reflection_entries:
         for idx, entry in enumerate(st.session_state.reflection_entries):
             st.markdown(f"*Entry {idx+1}:* {entry}")
             if st.button(f"Delete Entry {idx+1}", key=f"del_{idx}"):
                 st.session_state.reflection_entries.pop(idx)
-                st.success("Deleted!")
-                st.experimental_rerun()
+                st.rerun()
