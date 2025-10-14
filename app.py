@@ -108,37 +108,36 @@ with tabs[0]:
             st.session_state.history.append({"user": user_input, "reply": reply, "mood": mood})
             db.reference("chat_history").set(st.session_state.history)
 
-            # Clear input safely
+            # Clear input safely and refresh
             st.session_state.input_value = ""
             st.rerun()
 
-# -----------------------------
-# Mood Overview Tab
-# -----------------------------
-with tabs[1]:
-    st.header("📊 Mood Overview")
-    if st.session_state.history:
-        mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
-        st.bar_chart(mood_counts)
-    else:
-        st.info("No chat data yet. Your mood chart will appear here after chatting.")
 
 # -----------------------------
 # Self-Reflection Tab
 # -----------------------------
+import datetime
+
 with tabs[2]:
     st.header("✍ Self-Reflection")
     reflection_text = st.text_area("Write your thoughts here:", value=st.session_state.reflection_value, key="reflection_box")
+
     if st.button("Save Reflection"):
         if reflection_text.strip():
-            st.session_state.reflection_entries.append(reflection_text)
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p")
+            st.session_state.reflection_entries.append({
+                "text": reflection_text,
+                "time": timestamp
+            })
             st.success("Reflection saved!")
             st.session_state.reflection_value = ""
             st.rerun()
 
     if st.session_state.reflection_entries:
-        for idx, entry in enumerate(st.session_state.reflection_entries):
-            st.markdown(f"*Entry {idx+1}:* {entry}")
-            if st.button(f"Delete Entry {idx+1}", key=f"del_{idx}"):
-                st.session_state.reflection_entries.pop(idx)
+        for idx, entry in enumerate(reversed(st.session_state.reflection_entries)):
+            st.markdown(f"🕒 {entry['time']}")
+            st.markdown(entry["text"])
+            if st.button(f"Delete This Reflection", key=f"del_{idx}"):
+                st.session_state.reflection_entries.pop(len(st.session_state.reflection_entries) - 1 - idx)
                 st.rerun()
+            st.markdown("---")
