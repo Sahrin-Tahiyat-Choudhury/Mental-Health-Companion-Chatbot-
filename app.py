@@ -137,7 +137,7 @@ with tabs[2]:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             st.session_state.reflection_entries.append({"time": timestamp, "text": reflection_text})
             st.success("Reflection saved!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.warning("Write something before saving!")
 
@@ -149,6 +149,7 @@ with tabs[2]:
                 if st.button("Delete", key=f"del_ref_{idx}"):
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
-                    st.experimental_rerun()
+                    st.rerun()
+
 
 
