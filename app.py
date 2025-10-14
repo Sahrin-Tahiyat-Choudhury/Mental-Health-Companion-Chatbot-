@@ -71,7 +71,7 @@ with tabs[0]:
     with chat_container:
         for chat in st.session_state.history:
             st.markdown(f"*You:* {chat['user']}")
-            st.markdown(f"{st.session_state.nickname}:* {chat['reply']}")
+            st.markdown(f"**{st.session_state.nickname}:** {chat['reply']}")
             st.markdown(f"Detected Mood: {chat['mood']}")
             st.markdown("---")
 
@@ -158,4 +158,5 @@ with tabs[2]:
                     st.session_state.reflection_entries.pop(idx)
                     st.success("Deleted!")
                     st.experimental_rerun()
+
 
