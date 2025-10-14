@@ -117,13 +117,15 @@ with tabs[1]:
 # Self-Reflection Tab
 # -------------------------------
 with tabs[2]:
-    reflection_input = st.text_area("Write your reflection here:", key="reflection_box")
-    if st.button("💾 Save Reflection"):
-        if reflection_input.strip():
-            entry = {"text": reflection_input.strip()}
-            st.session_state.reflections.append(entry)
+    def save_reflection():
+        text = st.session_state.reflection_box
+        if text.strip():
+            st.session_state.reflections.append({"text": text.strip()})
             st.success("Saved!")
-            st.session_state.reflection_box = ""
+            st.session_state.reflection_box = ""  # Reset safely via callback
+
+    st.text_area("Write your reflection here:", key="reflection_box")
+    st.button("💾 Save Reflection", on_click=save_reflection)
 
     if st.session_state.reflections:
         st.markdown("### Saved Reflections")
