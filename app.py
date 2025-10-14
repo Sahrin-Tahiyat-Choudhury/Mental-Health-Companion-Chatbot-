@@ -30,7 +30,7 @@ st.set_page_config(page_title="CalmMate - AI Companion", page_icon="💬", layou
 st.title("💬 CalmMate – Your Supportive AI Companion")
 
 # Tabs
-tab1, tab2 = st.tabs(["Chat", "Self Reflection"])
+tab1, tab2, tab3 = st.tabs(["Chat", "Mood Overview", "Self Reflection"])
 
 # Nickname option
 if "nickname" not in st.session_state:
@@ -44,13 +44,16 @@ if nickname_input:
 if "history" not in st.session_state:
     st.session_state.history = []
 
+if "reflections" not in st.session_state:
+    st.session_state.reflections = []
+
 # --- Chat Tab ---
 with tab1:
     # Clear chat
     if st.button("🗑 Clear Chat"):
         st.session_state.history = []
         db.reference("chat_history").set({})
-        st.success("Chat cleared!")
+        st.experimental_rerun()
 
     # Chat input
     user_input = st.text_input("You:", key="input_box", placeholder="Type here...")
@@ -88,6 +91,9 @@ with tab1:
         st.session_state.history.append(chat_entry)
         save_to_firebase(st.session_state.history)
 
+        # Clear input automatically
+        st.session_state.input_box = ""
+
     # Display chat history above input
     if st.session_state.history:
         for chat in reversed(st.session_state.history):
@@ -111,27 +117,31 @@ with tab1:
                 f"<b>{st.session_state.nickname}:</b> {chat['reply']}<br><i>Mood:</i> {chat['mood']} {mood_emoji}</div>", unsafe_allow_html=True
             )
 
-        # Mood overview chart
+# --- Mood Overview Tab ---
+with tab2:
+    if st.session_state.history:
         mood_counts = pd.Series([c["mood"] for c in st.session_state.history]).value_counts()
         st.bar_chart(mood_counts)
+    else:
+        st.info("No chat history yet to generate mood chart.")
 
 # --- Self Reflection Tab ---
-with tab2:
-    if "reflections" not in st.session_state:
-        st.session_state.reflections = []
-
+with tab3:
     reflection_input = st.text_area("Write your reflection here:", key="reflection_box")
     if st.button("💾 Save Reflection"):
         if reflection_input.strip():
             st.session_state.reflections.append(reflection_input)
-            reflection_input = ""
-            st.success("Reflection saved!")
+            st.session_state.reflection_box = ""  # clear input
+            st.experimental_rerun()
 
     # Show saved reflections
     if st.session_state.reflections:
         st.markdown("### Saved Reflections")
         for i, ref in enumerate(st.session_state.reflections):
-            st.markdown(f"{i+1}. {ref}")
-            if st.button(f"🗑 Delete {i+1}", key=f"delete_ref_{i}"):
-                st.session_state.reflections.pop(i)
-                st.experimental_rerun()
+            col1, col2 = st.columns([9,1])
+            with col1:
+                st.markdown(f"{i+1}. {ref}")
+            with col2:
+                if st.button(f"🗑", key=f"delete_ref_{i}"):
+                    st.session_state.reflections.pop(i)
+                    st.experimental_rerun()
