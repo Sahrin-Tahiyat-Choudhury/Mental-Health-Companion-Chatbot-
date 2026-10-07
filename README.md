@@ -117,10 +117,10 @@ Firebase Realtime Database| Chat-history storage
 Mental-Health-Companion-Chatbot-/
 │
 ├── .devcontainer/
+├── README.md
 ├── app.py
-├── utils.py
 ├── requirements.txt
-└── README.md
+└── utils.py
 
 "app.py"
 
